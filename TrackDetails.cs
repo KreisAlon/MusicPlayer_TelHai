@@ -34,20 +34,20 @@ namespace Telhai.DotNet.PlayerProject
         }
 
         // Fetch song details from the web asynchronously
-        public async Task<SongItem?> GetSongDetails(string songName)
+        public async Task<SongItem?> GetSongDetails(string songName, System.Threading.CancellationToken token)
         {
             try
             {
-                // Build the request URL
                 string url = "https://itunes.apple.com/search?term=" + songName + "&media=music&limit=1";
 
-                // Get the JSON text from the API
-                string jsonContent = await client.GetStringAsync(url);
+                // Pass the token here so we can cancel the download if needed
+                var response = await client.GetAsync(url, token);
 
-                // Convert the text into C# objects
+                // Read the text
+                string jsonContent = await response.Content.ReadAsStringAsync();
+
                 var data = JsonConvert.DeserializeObject<SearchResult>(jsonContent);
 
-                // Validate that we have actual results
                 if (data != null && data.Results != null && data.Results.Count > 0)
                 {
                     return data.Results[0];
@@ -55,7 +55,6 @@ namespace Telhai.DotNet.PlayerProject
             }
             catch
             {
-                // Return null if network fails or data is invalid
                 return null;
             }
 

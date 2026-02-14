@@ -21,6 +21,7 @@ namespace Telhai.DotNet.PlayerProject
         private bool isDragging = false;
         private const string FILE_NAME = "library.json";
         private ItunesService apiService = new();
+        private System.Threading.CancellationTokenSource? tokenSource;
 
         public MusicPlayer()
         {
@@ -165,36 +166,43 @@ namespace Telhai.DotNet.PlayerProject
         {
             if (lstLibrary.SelectedItem is MusicTrack track)
             {
-                // 1. Play the local file
+                // Play music immediately
                 mediaPlayer.Open(new Uri(track.FilePath));
                 mediaPlayer.Play();
                 timer.Start();
 
-                // Update text on screen
                 txtCurrentSong.Text = track.Title;
                 txtStatus.Text = "Playing";
 
-                // 2. Reset UI before search
+
+                // If there is an old search running, I cancel it
+                if (tokenSource != null)
+                {
+                    tokenSource.Cancel();
+                    tokenSource.Dispose(); // Clean up memory
+                }
+
+                // Create a NEW cancel button for the current search
+                tokenSource = new System.Threading.CancellationTokenSource();
+
+
                 txtArtist.Text = "Searching...";
                 imgAlbumArt.Source = null;
 
                 try
                 {
-                    // 3. Get data from iTunes (Wait for it)
-                    var info = await apiService.GetSongDetails(track.Title);
+                    // Pass the token to the service
+                    var info = await apiService.GetSongDetails(track.Title, tokenSource.Token);
 
                     if (info != null)
                     {
-                        // Update artist name
                         txtArtist.Text = info.ArtistName;
 
-                        // Update image if exists
                         if (info.ArtworkUrl100 != null)
                         {
                             imgAlbumArt.Source = new BitmapImage(new Uri(info.ArtworkUrl100));
                         }
 
-                        // Save data to the track object
                         track.Artist = info.ArtistName;
                         track.Album = info.CollectionName;
                         track.ImageUrl = info.ArtworkUrl100;
@@ -204,14 +212,16 @@ namespace Telhai.DotNet.PlayerProject
                         txtArtist.Text = "Not Found";
                     }
                 }
+                catch (OperationCanceledException)
+                {
+                    // If I cancelled, dont show error
+                }
                 catch
                 {
-                    // Handle internet errors
                     txtStatus.Text = "Connection Error";
                 }
             }
         }
-
         private void BtnSettings_Click(object sender, RoutedEventArgs e)
         {
             //1) Create Settings Window Instance
