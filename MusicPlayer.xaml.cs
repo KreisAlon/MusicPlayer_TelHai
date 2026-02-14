@@ -50,14 +50,22 @@ namespace Telhai.DotNet.PlayerProject
 
         private void Timer_Tick(object? sender, EventArgs e)
         {
-            // Sync the slider position with the media playback
             if (mediaPlayer.Source != null && mediaPlayer.NaturalDuration.HasTimeSpan && !isDragging)
             {
-                sliderProgress.Maximum = mediaPlayer.NaturalDuration.TimeSpan.TotalSeconds;
-                sliderProgress.Value = mediaPlayer.Position.TotalSeconds;
+                // Check if the selected song matches the one currently in the player
+                if (lstLibrary.SelectedItem is MusicTrack selectedTrack &&
+                    mediaPlayer.Source.LocalPath == Path.GetFullPath(selectedTrack.FilePath))
+                {
+                    sliderProgress.Maximum = mediaPlayer.NaturalDuration.TimeSpan.TotalSeconds;
+                    sliderProgress.Value = mediaPlayer.Position.TotalSeconds;
+                }
+                else
+                {
+                    // If we are looking at a different song, reset the slider view to 0
+                    sliderProgress.Value = 0;
+                }
             }
         }
-
         private void BtnPlay_Click(object sender, RoutedEventArgs e)
         {
             // Check if a song is selected in the library
@@ -112,7 +120,14 @@ namespace Telhai.DotNet.PlayerProject
         private void Slider_DragCompleted(object sender, MouseButtonEventArgs e)
         {
             isDragging = false;
-            mediaPlayer.Position = TimeSpan.FromSeconds(sliderProgress.Value);
+
+            // Only update playback position if we are on the correct song
+            if (lstLibrary.SelectedItem is MusicTrack selectedTrack &&
+                mediaPlayer.Source != null &&
+                mediaPlayer.Source.LocalPath == Path.GetFullPath(selectedTrack.FilePath))
+            {
+                mediaPlayer.Position = TimeSpan.FromSeconds(sliderProgress.Value);
+            }
         }
 
         private void BtnAdd_Click(object sender, RoutedEventArgs e)
@@ -178,6 +193,9 @@ namespace Telhai.DotNet.PlayerProject
             {
                 txtCurrentSong.Text = track.Title;
                 txtStatus.Text = track.FilePath;
+
+
+                sliderProgress.Value = 0;
 
                 // Requirement 3.1: Use cached data if it exists
                 if (track.IsMetadataLoaded)
