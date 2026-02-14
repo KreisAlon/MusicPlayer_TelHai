@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.Windows.Media.Imaging;
 
 namespace Telhai.DotNet.PlayerProject
 {
@@ -19,6 +20,7 @@ namespace Telhai.DotNet.PlayerProject
         private List<MusicTrack> library = new List<MusicTrack>();
         private bool isDragging = false;
         private const string FILE_NAME = "library.json";
+        private ItunesService apiService = new();
 
         public MusicPlayer()
         {
@@ -158,15 +160,55 @@ namespace Telhai.DotNet.PlayerProject
             }
         }
 
-        private void LstLibrary_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        // Added 'async' to allow waiting for internet results
+        private async void LstLibrary_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
             if (lstLibrary.SelectedItem is MusicTrack track)
             {
+                // 1. Play the local file
                 mediaPlayer.Open(new Uri(track.FilePath));
                 mediaPlayer.Play();
                 timer.Start();
+
+                // Update text on screen
                 txtCurrentSong.Text = track.Title;
                 txtStatus.Text = "Playing";
+
+                // 2. Reset UI before search
+                txtArtist.Text = "Searching...";
+                imgAlbumArt.Source = null;
+
+                try
+                {
+                    // 3. Get data from iTunes (Wait for it)
+                    var info = await apiService.GetSongDetails(track.Title);
+
+                    if (info != null)
+                    {
+                        // Update artist name
+                        txtArtist.Text = info.ArtistName;
+
+                        // Update image if exists
+                        if (info.ArtworkUrl100 != null)
+                        {
+                            imgAlbumArt.Source = new BitmapImage(new Uri(info.ArtworkUrl100));
+                        }
+
+                        // Save data to the track object
+                        track.Artist = info.ArtistName;
+                        track.Album = info.CollectionName;
+                        track.ImageUrl = info.ArtworkUrl100;
+                    }
+                    else
+                    {
+                        txtArtist.Text = "Not Found";
+                    }
+                }
+                catch
+                {
+                    // Handle internet errors
+                    txtStatus.Text = "Connection Error";
+                }
             }
         }
 
