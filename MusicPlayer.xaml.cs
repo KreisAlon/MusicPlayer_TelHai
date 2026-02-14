@@ -248,6 +248,24 @@ namespace Telhai.DotNet.PlayerProject
             UpdateLibraryUI();
             SaveLibrary();
         }
+
+        private void BtnEdit_Click(object sender, RoutedEventArgs e)
+        {
+            // Check if a song is selected in the list
+            if (lstLibrary.SelectedItem is MusicTrack selectedTrack)
+            {
+                SongDetailsWindow editWindow = new SongDetailsWindow(selectedTrack);
+
+                if (editWindow.ShowDialog() == true)
+                {
+                    // If the user clicked "Save", I need to refresh the list
+                    UpdateLibraryUI();
+
+                    // For save the changes to the file
+                    SaveLibrary();
+                }
+            }
+        }
     }
 
 
