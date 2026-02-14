@@ -60,9 +60,31 @@ namespace Telhai.DotNet.PlayerProject
 
         private void BtnPlay_Click(object sender, RoutedEventArgs e)
         {
-            mediaPlayer.Play();
-            timer.Start();
-            txtStatus.Text = "Playing";
+            // Check if a song is selected in the library
+            if (lstLibrary.SelectedItem is MusicTrack selectedTrack)
+            {
+                // 1. Check if we need to load a new file
+                // We compare the current player source with the selected track's path
+                bool isNewSong = mediaPlayer.Source == null ||
+                                 Path.GetFullPath(mediaPlayer.Source.LocalPath) != Path.GetFullPath(selectedTrack.FilePath);
+
+                if (isNewSong)
+                {
+                    // Stop whatever is playing now
+                    mediaPlayer.Stop();
+
+                    // Open the newly selected track
+                    mediaPlayer.Open(new Uri(selectedTrack.FilePath));
+
+                    // Sync the UI and Slideshow for the new song
+                    ShowTrackMetadata(selectedTrack);
+                }
+
+                // 2. Start playing (either the new song or resuming the current one)
+                mediaPlayer.Play();
+                timer.Start(); // Start the progress slider timer
+                txtStatus.Text = "Playing";
+            }
         }
 
         private void BtnPause_Click(object sender, RoutedEventArgs e)
@@ -75,11 +97,11 @@ namespace Telhai.DotNet.PlayerProject
         {
             mediaPlayer.Stop();
             timer.Stop();
-            slideshowTimer.Stop(); // Stop slideshow when playback stops
-            sliderProgress.Value = 0;
+            slideshowTimer.Stop(); // Stop the images from rotating
+
+            sliderProgress.Value = 0; // Reset the seek bar
             txtStatus.Text = "Stopped";
         }
-
         private void SliderVolume_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             mediaPlayer.Volume = sliderVolume.Value;
