@@ -93,7 +93,7 @@ namespace Telhai.DotNet.PlayerProject
             OnScanCompleted?.Invoke(foundTracks);
 
             //At least one subbsriber
-            if (OnScanCompleted !=null)
+            if (OnScanCompleted != null)
             {
                 OnScanCompleted(foundTracks);
             }

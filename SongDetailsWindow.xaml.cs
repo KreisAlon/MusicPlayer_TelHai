@@ -4,26 +4,26 @@ namespace Telhai.DotNet.PlayerProject
 {
     public partial class SongDetailsWindow : Window
     {
-        private MusicTrack trackToEdit;
+        private EditSongViewModel viewModel;
 
         public SongDetailsWindow(MusicTrack track)
         {
             InitializeComponent();
-            trackToEdit = track;
+            // Connect the ViewModel for MVVM
+            viewModel = new EditSongViewModel(track);
+            this.DataContext = viewModel;
+        }
 
-            // Load values to text boxes
-            txtTitle.Text = track.Title;
-            txtArtist.Text = track.Artist;
-            txtAlbum.Text = track.Album;
+        private void BtnAddFile_Click(object sender, RoutedEventArgs e) => viewModel.AddImageFromFile();
+
+
+        private void BtnRemove_Click(object sender, RoutedEventArgs e)
+        {
+            if (lstImages.SelectedItem is string path) viewModel.RemoveImage(path);
         }
 
         private void BtnSave_Click(object sender, RoutedEventArgs e)
         {
-            // Save values back to track
-            trackToEdit.Title = txtTitle.Text;
-            trackToEdit.Artist = txtArtist.Text;
-            trackToEdit.Album = txtAlbum.Text;
-
             this.DialogResult = true;
             this.Close();
         }

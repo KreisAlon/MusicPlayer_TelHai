@@ -11,8 +11,8 @@ namespace Telhai.DotNet.PlayerProject
     {
         // Note: These names match the iTunes API fields (case-insensitive)
         public string? TrackName { get; set; }
-        public string? ArtistName { get; set; }      // Must be ArtistName to match data
-        public string? CollectionName { get; set; }  // Must be CollectionName (album)
+        public string? ArtistName { get; set; }      // ArtistName to match data
+        public string? CollectionName { get; set; }  // CollectionName (album)
         public string? ArtworkUrl100 { get; set; }   // The image link
     }
 

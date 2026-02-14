@@ -12,14 +12,19 @@ namespace Telhai.DotNet.PlayerProject
 {
     public partial class MusicPlayer : Window
     {
-        // Global variables for the player logic
+        // Core components for the media player and track list
         private MediaPlayer mediaPlayer = new MediaPlayer();
         private DispatcherTimer timer = new DispatcherTimer();
         private List<MusicTrack> library = new List<MusicTrack>();
         private bool isDragging = false;
         private const string FILE_NAME = "library.json";
 
-        // Services for API and task cancellation
+        // Requirement 3.2: Components for the image slideshow
+        private DispatcherTimer slideshowTimer = new DispatcherTimer();
+        private List<string> currentTrackImages = new List<string>();
+        private int currentImageIndex = 0;
+
+        // Requirement 2: Service for fetching song details from iTunes API
         private ItunesService apiService = new ItunesService();
         private System.Threading.CancellationTokenSource? tokenSource;
 
@@ -27,21 +32,25 @@ namespace Telhai.DotNet.PlayerProject
         {
             InitializeComponent();
 
-            // Setting up the timer for the seek bar
+            // Progress timer: Updates the seek bar while music plays
             timer.Interval = TimeSpan.FromMilliseconds(500);
             timer.Tick += Timer_Tick;
+
+            // Requirement 3.2: Slideshow timer - rotates images every 3 seconds
+            slideshowTimer.Interval = TimeSpan.FromSeconds(3);
+            slideshowTimer.Tick += SlideshowTimer_Tick;
 
             this.Loaded += MusicPlayer_Loaded;
         }
 
         private void MusicPlayer_Loaded(object sender, RoutedEventArgs e)
         {
-            LoadLibrary();
+            LoadLibrary(); // Loads saved tracks from JSON
         }
 
         private void Timer_Tick(object? sender, EventArgs e)
         {
-            // Update the slider position while the song is playing
+            // Sync the slider position with the media playback
             if (mediaPlayer.Source != null && mediaPlayer.NaturalDuration.HasTimeSpan && !isDragging)
             {
                 sliderProgress.Maximum = mediaPlayer.NaturalDuration.TimeSpan.TotalSeconds;
@@ -49,7 +58,6 @@ namespace Telhai.DotNet.PlayerProject
             }
         }
 
-        // --- Basic Player Controls ---
         private void BtnPlay_Click(object sender, RoutedEventArgs e)
         {
             mediaPlayer.Play();
@@ -67,6 +75,7 @@ namespace Telhai.DotNet.PlayerProject
         {
             mediaPlayer.Stop();
             timer.Stop();
+            slideshowTimer.Stop(); // Stop slideshow when playback stops
             sliderProgress.Value = 0;
             txtStatus.Text = "Stopped";
         }
@@ -76,10 +85,7 @@ namespace Telhai.DotNet.PlayerProject
             mediaPlayer.Volume = sliderVolume.Value;
         }
 
-        private void Slider_DragStarted(object sender, MouseButtonEventArgs e)
-        {
-            isDragging = true;
-        }
+        private void Slider_DragStarted(object sender, MouseButtonEventArgs e) => isDragging = true;
 
         private void Slider_DragCompleted(object sender, MouseButtonEventArgs e)
         {
@@ -87,7 +93,6 @@ namespace Telhai.DotNet.PlayerProject
             mediaPlayer.Position = TimeSpan.FromSeconds(sliderProgress.Value);
         }
 
-        // --- Library Logic (Add/Remove/Save/Load) ---
         private void BtnAdd_Click(object sender, RoutedEventArgs e)
         {
             OpenFileDialog ofd = new OpenFileDialog { Multiselect = true, Filter = "MP3 Files|*.mp3" };
@@ -96,7 +101,6 @@ namespace Telhai.DotNet.PlayerProject
             {
                 foreach (string file in ofd.FileNames)
                 {
-                    // Add only if the file isn't already in the list
                     if (!library.Any(t => t.FilePath == file))
                     {
                         library.Add(new MusicTrack
@@ -129,7 +133,7 @@ namespace Telhai.DotNet.PlayerProject
 
         private void SaveLibrary()
         {
-            // Saving the library to JSON to keep changes (Requirement 3.1)
+            // Requirement 3.1: Save everything to JSON
             var options = new JsonSerializerOptions { WriteIndented = true };
             string json = JsonSerializer.Serialize(library, options);
             File.WriteAllText(FILE_NAME, json);
@@ -145,79 +149,69 @@ namespace Telhai.DotNet.PlayerProject
             }
         }
 
-        // --- Requirement Logic (Selection and API) ---
-
-        // This runs on a single click (Requirement 2)
+        // Requirement 2: Displays basic info on single click
         private void LstLibrary_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (lstLibrary.SelectedItem is MusicTrack track)
             {
-                // Show Title and File Path as required
                 txtCurrentSong.Text = track.Title;
                 txtStatus.Text = track.FilePath;
 
-                // Requirement 3.1: If we have cached metadata, show it without calling the API
+                // Requirement 3.1: Use cached data if it exists
                 if (track.IsMetadataLoaded)
                 {
-                    UpdateGuiWithMetadata(track);
+                    ShowTrackMetadata(track);
                 }
                 else
                 {
-                    txtArtist.Text = "Play to find artist info";
+                    txtArtist.Text = "Play to search details";
                     imgAlbumArt.Source = null;
+                    slideshowTimer.Stop();
                 }
             }
         }
 
-        // This runs on Double Click or Play (Requirement 2 & 3.1)
+        // Requirement 2 & 3.1: Plays song and fetches data via API
         private async void LstLibrary_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
             if (lstLibrary.SelectedItem is MusicTrack track)
             {
-                // Play music immediately so the user doesn't wait
                 mediaPlayer.Open(new Uri(track.FilePath));
                 mediaPlayer.Play();
                 timer.Start();
                 txtStatus.Text = "Playing...";
 
-                // Requirement 3.1: Skip API call if data is already loaded in JSON
+                // Requirement 3.1: If already loaded, skip API call
                 if (track.IsMetadataLoaded)
                 {
-                    UpdateGuiWithMetadata(track);
+                    ShowTrackMetadata(track);
                     return;
                 }
 
-                // If no data, start API search
                 CancelActiveSearch();
                 tokenSource = new System.Threading.CancellationTokenSource();
-
-                txtArtist.Text = "Searching metadata...";
+                txtArtist.Text = "Searching iTunes...";
 
                 try
                 {
-                    // Fetch data from iTunes using the title
                     var info = await apiService.GetSongDetails(track.Title, tokenSource.Token);
 
                     if (info != null)
                     {
-                        // Save metadata to the track object
                         track.Artist = info.ArtistName;
                         track.Album = info.CollectionName;
                         track.ImageUrl = info.ArtworkUrl100;
-                        track.IsMetadataLoaded = true; // Mark as done for next time
+                        track.IsMetadataLoaded = true;
 
-                        UpdateGuiWithMetadata(track);
-                        SaveLibrary(); // Persist changes to JSON
+                        ShowTrackMetadata(track);
+                        SaveLibrary();
                     }
                     else
                     {
                         ShowErrorInfo(track);
                     }
                 }
-                catch (OperationCanceledException)
-                {
-                    // Search was cancelled because the user switched songs
-                }
+                catch (OperationCanceledException) { }
                 catch
                 {
                     ShowErrorInfo(track);
@@ -226,24 +220,74 @@ namespace Telhai.DotNet.PlayerProject
             }
         }
 
-        // Update the screen with artist and album image
-        private void UpdateGuiWithMetadata(MusicTrack track)
+        // Requirement 3.2: Main method for UI updates and slideshow setup
+        private void ShowTrackMetadata(MusicTrack track)
         {
             txtCurrentSong.Text = track.Title;
             txtArtist.Text = track.Artist;
 
+            currentTrackImages.Clear();
+
+            // API Image from iTunes
             if (!string.IsNullOrEmpty(track.ImageUrl))
+                currentTrackImages.Add(track.ImageUrl);
+
+            // User added images from the MVVM Edit Window
+            if (track.UserImages != null && track.UserImages.Count > 0)
+                currentTrackImages.AddRange(track.UserImages);
+
+            currentImageIndex = 0;
+
+            if (currentTrackImages.Count > 0)
             {
-                imgAlbumArt.Source = new BitmapImage(new Uri(track.ImageUrl));
+                UpdateImageSource(currentTrackImages[0]);
+
+                // Requirement 3.2: Start slideshow if there are multiple images
+                if (currentTrackImages.Count > 1)
+                    slideshowTimer.Start();
+                else
+                    slideshowTimer.Stop();
+            }
+            else
+            {
+                imgAlbumArt.Source = null;
+                slideshowTimer.Stop();
             }
         }
 
-        // Requirement 2: What to show if the API fails
+        private void SlideshowTimer_Tick(object? sender, EventArgs e)
+        {
+            if (currentTrackImages.Count > 1)
+            {
+                currentImageIndex = (currentImageIndex + 1) % currentTrackImages.Count;
+                UpdateImageSource(currentTrackImages[currentImageIndex]);
+            }
+        }
+        private void UpdateImageSource(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return;
+
+            try
+            {
+                BitmapImage bitmap = new BitmapImage();
+                bitmap.BeginInit();
+
+                // This handles both local paths and the single API URL
+                bitmap.UriSource = new Uri(path, UriKind.RelativeOrAbsolute);
+
+                // Critical for local files: ensures they are loaded and not "locked"
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.EndInit();
+
+                imgAlbumArt.Source = bitmap;
+            }
+            catch { /* If a file is moved or deleted, skip it */ }
+        }
         private void ShowErrorInfo(MusicTrack track)
         {
             txtCurrentSong.Text = Path.GetFileNameWithoutExtension(track.FilePath);
             txtStatus.Text = track.FilePath;
-            txtArtist.Text = "No Info Found";
+            txtArtist.Text = "Metadata not found";
         }
 
         private void CancelActiveSearch()
@@ -256,7 +300,6 @@ namespace Telhai.DotNet.PlayerProject
             }
         }
 
-        // --- Windows and Events ---
         private void BtnSettings_Click(object sender, RoutedEventArgs e)
         {
             Settings settingsWin = new Settings();
@@ -275,12 +318,13 @@ namespace Telhai.DotNet.PlayerProject
         {
             if (lstLibrary.SelectedItem is MusicTrack selectedTrack)
             {
-                // Open the Edit window (Requirement 3.2 - MVVM will be handled here)
+                // Requirement 3.2: Open MVVM Edit Window
                 SongDetailsWindow editWin = new SongDetailsWindow(selectedTrack);
                 if (editWin.ShowDialog() == true)
                 {
                     UpdateLibraryUI();
                     SaveLibrary();
+                    ShowTrackMetadata(selectedTrack); // Update UI if details changed
                 }
             }
         }
