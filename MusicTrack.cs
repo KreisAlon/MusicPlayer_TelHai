@@ -1,29 +1,31 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections.Generic;
 
 namespace Telhai.DotNet.PlayerProject
 {
+    // Model class representing a single music track
     public class MusicTrack
     {
-        // Basic info (Local file)
-        public string Title { get; set; } = string.Empty;
-        public string FilePath { get; set; } = string.Empty;
+        public string Title { get; set; }
+        public string FilePath { get; set; }
+        public string Artist { get; set; }
+        public string Album { get; set; }
+        public string ImageUrl { get; set; } // URL fetched from the iTunes API
 
-        // --- New properties for API data ---
-        public string? Artist { get; set; }       // Artist name from iTunes
-        public string? Album { get; set; }        // Album name
-        public string? ImageUrl { get; set; }     // Cover image URL
+        // List of additional images managed by the user
+        public List<string> UserImages { get; set; }
 
-        // Override ToString to display "Artist - Title" in the list if available
+        // Flag to indicate if metadata was already retrieved
+        public bool IsMetadataLoaded { get; set; }
+
+        public MusicTrack()
+        {
+            // Initialize the list to avoid null reference errors
+            UserImages = new List<string>();
+            IsMetadataLoaded = false;
+        }
+
         public override string ToString()
         {
-            if (!string.IsNullOrEmpty(Artist))
-            {
-                return $"{Artist} - {Title}";
-            }
             return Title;
         }
     }
